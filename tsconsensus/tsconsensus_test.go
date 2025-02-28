@@ -169,6 +169,7 @@ func startNode(t *testing.T, ctx context.Context, controlURL, hostname string) (
 }
 
 func waitForNodesToBeTaggedInStatus(t *testing.T, ctx context.Context, ts *tsnet.Server, nodeKeys []key.NodePublic, tag string) {
+	t.Helper()
 	waitFor(t, "nodes tagged in status", func() bool {
 		lc, err := ts.LocalClient()
 		if err != nil {
@@ -269,6 +270,7 @@ func TestStart(t *testing.T) {
 }
 
 func waitFor(t *testing.T, msg string, condition func() bool, nTries int, waitBetweenTries time.Duration) {
+	t.Helper()
 	for try := 0; try < nTries; try++ {
 		done := condition()
 		if done {
@@ -290,6 +292,7 @@ type participant struct {
 // starts and tags the *tsnet.Server nodes with the control, waits for the nodes to make successful
 // LocalClient Status calls that show the first node as Online.
 func startNodesAndWaitForPeerStatus(t *testing.T, ctx context.Context, clusterTag string, nNodes int) ([]*participant, *testcontrol.Server, string) {
+	t.Helper()
 	ps := make([]*participant, nNodes)
 	keysToTag := make([]key.NodePublic, nNodes)
 	localClients := make([]*tailscale.LocalClient, nNodes)
@@ -327,6 +330,7 @@ func startNodesAndWaitForPeerStatus(t *testing.T, ctx context.Context, clusterTa
 // as part of the same consensus cluster. Starts the first participant first and waits for it to
 // become leader before adding other nodes.
 func createConsensusCluster(t *testing.T, ctx context.Context, clusterTag string, participants []*participant, cfg Config, serveDebugMonitor bool) {
+	t.Helper()
 	participants[0].sm = &fsm{}
 	rand.Seed(uint64(time.Now().UnixNano()))
 	randomNumber := rand.Intn(8999) + 1000
@@ -395,6 +399,7 @@ func TestApply(t *testing.T) {
 
 // calls ExecuteCommand on each participant and checks that all participants get all commands
 func assertCommandsWorkOnAnyNode(t *testing.T, participants []*participant) {
+	t.Helper()
 	want := []string{}
 	for i, p := range participants {
 		si := fmt.Sprintf("%d", i)
