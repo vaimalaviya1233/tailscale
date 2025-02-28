@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"golang.org/x/exp/rand"
@@ -40,20 +41,49 @@ import (
 )
 
 type fsm struct {
-	mu     sync.Mutex // protects events and count
-	events []map[string]any
-	count  int
+	mu          sync.Mutex // protects events and count
+	applyEvents []string
+}
+
+func commandWith(t *testing.T, s string) []byte {
+	jsonArgs, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bs, err := json.Marshal(Command{
+		Args: jsonArgs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bs
+}
+
+func fromCommand(bs []byte) (string, error) {
+	var cmd Command
+	err := json.Unmarshal(bs, &cmd)
+	if err != nil {
+		return "", err
+	}
+	var args string
+	err = json.Unmarshal(cmd.Args, &args)
+	if err != nil {
+		return "", err
+	}
+	return args, nil
 }
 
 func (f *fsm) Apply(l *raft.Log) any {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.count++
-	f.events = append(f.events, map[string]any{
-		"type": "Apply",
-		"l":    l,
-	})
-	result, err := json.Marshal(f.count)
+	s, err := fromCommand(l.Data)
+	if err != nil {
+		return CommandResult{
+			Err: err,
+		}
+	}
+	f.applyEvents = append(f.applyEvents, s)
+	result, err := json.Marshal(len(f.applyEvents))
 	if err != nil {
 		panic("should be able to Marshal that?")
 	}
@@ -65,7 +95,13 @@ func (f *fsm) Apply(l *raft.Log) any {
 func (f *fsm) numEvents() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return len(f.events)
+	return len(f.applyEvents)
+}
+
+func (f *fsm) eventsMatch(es []string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return cmp.Equal(es, f.applyEvents)
 }
 
 func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
@@ -344,22 +380,26 @@ func TestApply(t *testing.T) {
 		defer p.c.Stop(ctx)
 	}
 
-	fut := ps[0].c.raft.Apply([]byte("woo"), 2*time.Second)
+	fut := ps[0].c.raft.Apply(commandWith(t, "woo"), 2*time.Second)
 	err := fut.Error()
 	if err != nil {
 		t.Fatalf("Raft Apply Error: %v", err)
 	}
 
+	want := []string{"woo"}
 	fxBothMachinesHaveTheApply := func() bool {
-		return ps[0].sm.numEvents() == 1 && ps[1].sm.numEvents() == 1
+		return ps[0].sm.eventsMatch(want) && ps[1].sm.eventsMatch(want)
 	}
 	waitFor(t, "the apply event made it into both state machines", fxBothMachinesHaveTheApply, 10, time.Second*1)
 }
 
 // calls ExecuteCommand on each participant and checks that all participants get all commands
 func assertCommandsWorkOnAnyNode(t *testing.T, participants []*participant) {
+	want := []string{}
 	for i, p := range participants {
-		bs, err := json.Marshal(i)
+		si := fmt.Sprintf("%d", i)
+		want = append(want, si)
+		bs, err := json.Marshal(si)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -380,10 +420,9 @@ func assertCommandsWorkOnAnyNode(t *testing.T, participants []*participant) {
 			t.Fatalf("Result, want %d, got %d", i+1, retVal)
 		}
 
-		expectedEventsLength := i + 1
 		fxEventsInAll := func() bool {
 			for _, pOther := range participants {
-				if pOther.sm.numEvents() != expectedEventsLength {
+				if !pOther.sm.eventsMatch(want) {
 					return false
 				}
 			}
@@ -446,8 +485,8 @@ func TestFollowerFailover(t *testing.T) {
 
 	smThree := ps[2].sm
 
-	fut := ps[0].c.raft.Apply([]byte("a"), 2*time.Second)
-	futTwo := ps[0].c.raft.Apply([]byte("b"), 2*time.Second)
+	fut := ps[0].c.raft.Apply(commandWith(t, "a"), 2*time.Second)
+	futTwo := ps[0].c.raft.Apply(commandWith(t, "b"), 2*time.Second)
 	err := fut.Error()
 	if err != nil {
 		t.Fatalf("Apply Raft error %v", err)
@@ -457,8 +496,11 @@ func TestFollowerFailover(t *testing.T) {
 		t.Fatalf("Apply Raft error %v", err)
 	}
 
+	wantFirstTwoEvents := []string{"a", "b"}
 	fxAllMachinesHaveTheApplies := func() bool {
-		return ps[0].sm.numEvents() == 2 && ps[1].sm.numEvents() == 2 && smThree.numEvents() == 2
+		return ps[0].sm.eventsMatch(wantFirstTwoEvents) &&
+			ps[1].sm.eventsMatch(wantFirstTwoEvents) &&
+			smThree.eventsMatch(wantFirstTwoEvents)
 	}
 	waitFor(t, "the apply events made it into all state machines", fxAllMachinesHaveTheApplies, 10, time.Second*1)
 
@@ -466,8 +508,8 @@ func TestFollowerFailover(t *testing.T) {
 	ps[2].c.Stop(ctx)
 
 	// applies still make it to one and two
-	futThree := ps[0].c.raft.Apply([]byte("c"), 2*time.Second)
-	futFour := ps[0].c.raft.Apply([]byte("d"), 2*time.Second)
+	futThree := ps[0].c.raft.Apply(commandWith(t, "c"), 2*time.Second)
+	futFour := ps[0].c.raft.Apply(commandWith(t, "d"), 2*time.Second)
 	err = futThree.Error()
 	if err != nil {
 		t.Fatalf("Apply Raft error %v", err)
@@ -476,8 +518,11 @@ func TestFollowerFailover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply Raft error %v", err)
 	}
+	wantFourEvents := []string{"a", "b", "c", "d"}
 	fxAliveMachinesHaveTheApplies := func() bool {
-		return ps[0].sm.numEvents() == 4 && ps[1].sm.numEvents() == 4 && smThree.numEvents() == 2
+		return ps[0].sm.eventsMatch(wantFourEvents) &&
+			ps[1].sm.eventsMatch(wantFourEvents) &&
+			smThree.eventsMatch(wantFirstTwoEvents)
 	}
 	waitFor(t, "the apply events made it into eligible state machines", fxAliveMachinesHaveTheApplies, 10, time.Second*1)
 
@@ -490,10 +535,10 @@ func TestFollowerFailover(t *testing.T) {
 	}
 	defer rThreeAgain.Stop(ctx)
 	fxThreeGetsCaughtUp := func() bool {
-		return smThreeAgain.numEvents() == 4
+		return smThreeAgain.eventsMatch(wantFourEvents)
 	}
 	waitFor(t, "the apply events made it into the third node when it appeared with an empty state machine", fxThreeGetsCaughtUp, 20, time.Second*2)
-	if smThree.numEvents() != 2 {
+	if !smThree.eventsMatch(wantFirstTwoEvents) {
 		t.Fatalf("Expected smThree to remain on 2 events: got %d", smThree.numEvents())
 	}
 }
