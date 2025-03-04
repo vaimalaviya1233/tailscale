@@ -397,7 +397,7 @@ func (c *Consensus) executeCommandLocally(cmd Command) (CommandResult, error) {
 	if err != nil {
 		return CommandResult{}, err
 	}
-	f := c.raft.Apply(b, 10*time.Second) // TODO hardcoded timeout
+	f := c.raft.Apply(b, 0)
 	err = f.Error()
 	result := f.Response()
 	if errors.Is(err, raft.ErrNotLeader) {
