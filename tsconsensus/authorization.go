@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"net/netip"
-	"slices"
 	"sync"
 	"time"
 
@@ -102,7 +101,7 @@ func (a *authorization) SelfAllowed() bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.peers.status.Self.Tags != nil && slices.Contains(a.peers.status.Self.Tags.AsSlice(), a.tag)
+	return a.peers.status.Self.Tags != nil && views.SliceContains(*a.peers.status.Self.Tags, a.tag)
 }
 
 func (a *authorization) AllowedPeers() views.Slice[*ipnstate.PeerStatus] {
@@ -130,9 +129,7 @@ func newPeers(status *ipnstate.Status, tag string) *peers {
 		allowedRemoteAddrs: set.Set[netip.Addr]{},
 	}
 	for _, p := range status.Peer {
-		if p.Tags != nil && p.Tags.ContainsFunc(func(s string) bool {
-			return s == tag
-		}) {
+		if p.Tags != nil && views.SliceContains(*p.Tags, tag) {
 			ps.allowedPeers = append(ps.allowedPeers, p)
 			for _, addr := range p.TailscaleIPs {
 				ps.allowedRemoteAddrs.Add(addr)
