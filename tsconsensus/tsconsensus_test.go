@@ -111,8 +111,6 @@ func (f *fsm) Restore(rc io.ReadCloser) error {
 	return nil
 }
 
-var testContextTimeout = 60 * time.Second
-
 func startControl(t *testing.T) (control *testcontrol.Server, controlURL string) {
 	// tailscale/corp#4520: don't use netns for tests.
 	netns.SetEnabled(false)
@@ -242,8 +240,7 @@ func warnLogConfig() Config {
 func TestStart(t *testing.T) {
 	nettest.SkipIfNoNetwork(t)
 	control, controlURL := startControl(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
+	ctx := context.Background()
 	one, k, _ := startNode(t, ctx, controlURL, "one")
 
 	clusterTag := "tag:whatever"
@@ -364,8 +361,7 @@ func createConsensusCluster(t *testing.T, ctx context.Context, clusterTag string
 
 func TestApply(t *testing.T) {
 	nettest.SkipIfNoNetwork(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
+	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, _, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 2)
 	cfg := warnLogConfig()
@@ -429,8 +425,7 @@ func assertCommandsWorkOnAnyNode(t *testing.T, participants []*participant) {
 
 func TestConfig(t *testing.T) {
 	nettest.SkipIfNoNetwork(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
+	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, _, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 	cfg := warnLogConfig()
@@ -468,8 +463,7 @@ func TestConfig(t *testing.T) {
 
 func TestFollowerFailover(t *testing.T) {
 	nettest.SkipIfNoNetwork(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
+	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, _, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 	cfg := warnLogConfig()
@@ -540,8 +534,7 @@ func TestFollowerFailover(t *testing.T) {
 
 func TestRejoin(t *testing.T) {
 	nettest.SkipIfNoNetwork(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
+	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, control, controlURL := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 	cfg := warnLogConfig()
@@ -576,8 +569,7 @@ func TestRejoin(t *testing.T) {
 
 func TestOnlyTaggedPeersCanDialRaftPort(t *testing.T) {
 	nettest.SkipIfNoNetwork(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
+	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, control, controlURL := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 	cfg := warnLogConfig()
@@ -599,8 +591,7 @@ func TestOnlyTaggedPeersCanDialRaftPort(t *testing.T) {
 	sAddr := fmt.Sprintf("%s:%d", ipv4, cfg.RaftPort)
 
 	getErrorFromTryingToSend := func(s *tsnet.Server) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+		ctx := context.Background()
 		conn, err := s.Dial(ctx, "tcp", sAddr)
 		if err != nil {
 			t.Fatalf("unexpected Dial err: %v", err)
@@ -635,8 +626,7 @@ func TestOnlyTaggedPeersCanDialRaftPort(t *testing.T) {
 
 func TestOnlyTaggedPeersCanBeDialed(t *testing.T) {
 	nettest.SkipIfNoNetwork(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
+	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, control, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 
@@ -699,8 +689,7 @@ func TestOnlyTaggedPeersCanBeDialed(t *testing.T) {
 
 func TestOnlyTaggedPeersCanJoin(t *testing.T) {
 	nettest.SkipIfNoNetwork(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
+	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, _, controlURL := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 	cfg := warnLogConfig()
