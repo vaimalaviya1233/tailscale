@@ -250,7 +250,7 @@ func TestStart(t *testing.T) {
 	waitForNodesToBeTaggedInStatus(t, ctx, one, []key.NodePublic{k}, clusterTag)
 
 	sm := &fsm{}
-	r, err := Start(ctx, one, (*fsm)(sm), clusterTag, warnLogConfig(), false)
+	r, err := Start(ctx, one, sm, clusterTag, warnLogConfig(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +324,7 @@ func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string
 	rand.Seed(uint64(time.Now().UnixNano()))
 	randomNumber := rand.Intn(8999) + 1000
 	myCfg := addIDedLogger(fmt.Sprintf("0(%d)", randomNumber), cfg)
-	first, err := Start(ctx, participants[0].ts, (*fsm)(participants[0].sm), clusterTag, myCfg, serveDebugMonitor)
+	first, err := Start(ctx, participants[0].ts, participants[0].sm, clusterTag, myCfg, serveDebugMonitor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string
 		participants[i].sm = &fsm{}
 		randomNumber := rand.Intn(8999) + 1000
 		myCfg := addIDedLogger(fmt.Sprintf("%d(%d)", i, randomNumber), cfg)
-		c, err := Start(ctx, participants[i].ts, (*fsm)(participants[i].sm), clusterTag, myCfg, false)
+		c, err := Start(ctx, participants[i].ts, participants[i].sm, clusterTag, myCfg, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -520,7 +520,7 @@ func TestFollowerFailover(t *testing.T) {
 	// follower comes back
 	smThreeAgain := &fsm{}
 	cfg = addIDedLogger("2 after restarting", warnLogConfig())
-	rThreeAgain, err := Start(ctx, ps[2].ts, (*fsm)(smThreeAgain), clusterTag, cfg, false)
+	rThreeAgain, err := Start(ctx, ps[2].ts, smThreeAgain, clusterTag, cfg, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -555,7 +555,7 @@ func TestRejoin(t *testing.T) {
 	tagNodes(t, control, []key.NodePublic{keyJoiner}, clusterTag)
 	waitForNodesToBeTaggedInStatus(t, ctx, ps[0].ts, []key.NodePublic{keyJoiner}, clusterTag)
 	smJoiner := &fsm{}
-	cJoiner, err := Start(ctx, tsJoiner, (*fsm)(smJoiner), clusterTag, cfg, false)
+	cJoiner, err := Start(ctx, tsJoiner, smJoiner, clusterTag, cfg, false)
 	if err != nil {
 		t.Fatal(err)
 	}
