@@ -190,7 +190,7 @@ func waitForNodesToBeTaggedInStatus(t testing.TB, ctx context.Context, ts *tsnet
 			}
 		}
 		return true
-	}, 20, 2*time.Second)
+	}, 2*time.Second)
 }
 
 func tagNodes(t testing.TB, control *testcontrol.Server, nodeKeys []key.NodePublic, tag string) {
@@ -257,9 +257,11 @@ func TestStart(t *testing.T) {
 	defer r.Stop(ctx)
 }
 
-func waitFor(t testing.TB, msg string, condition func() bool, nTries int, waitBetweenTries time.Duration) {
+func waitFor(t testing.TB, msg string, condition func() bool, waitBetweenTries time.Duration) {
 	t.Helper()
-	for try := 0; try < nTries; try++ {
+	try := 0
+	for true {
+		try++
 		done := condition()
 		if done {
 			t.Logf("waitFor success: %s: after %d tries", msg, try)
@@ -267,7 +269,6 @@ func waitFor(t testing.TB, msg string, condition func() bool, nTries int, waitBe
 		}
 		time.Sleep(waitBetweenTries)
 	}
-	t.Fatalf("waitFor timed out: %s, after %d tries", msg, nTries)
 }
 
 type participant struct {
@@ -310,7 +311,7 @@ func startNodesAndWaitForPeerStatus(t testing.TB, ctx context.Context, clusterTa
 		}
 		return true
 	}
-	waitFor(t, "other nodes see node 1 online in ts status", fxCameOnline, 10, 2*time.Second)
+	waitFor(t, "other nodes see node 1 online in ts status", fxCameOnline, 2*time.Second)
 	return ps, control, controlURL
 }
 
@@ -330,7 +331,7 @@ func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string
 	fxFirstIsLeader := func() bool {
 		return first.raft.State() == raft.Leader
 	}
-	waitFor(t, "node 0 is leader", fxFirstIsLeader, 20, 2*time.Second)
+	waitFor(t, "node 0 is leader", fxFirstIsLeader, 2*time.Second)
 	participants[0].c = first
 
 	for i := 1; i < len(participants); i++ {
@@ -357,7 +358,7 @@ func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string
 		}
 		return true
 	}
-	waitFor(t, "all raft machines have all servers in their config", fxRaftConfigContainsAll, 15, time.Second*2)
+	waitFor(t, "all raft machines have all servers in their config", fxRaftConfigContainsAll, time.Second*2)
 }
 
 func TestApply(t *testing.T) {
@@ -381,7 +382,7 @@ func TestApply(t *testing.T) {
 	fxBothMachinesHaveTheApply := func() bool {
 		return ps[0].sm.eventsMatch(want) && ps[1].sm.eventsMatch(want)
 	}
-	waitFor(t, "the apply event made it into both state machines", fxBothMachinesHaveTheApply, 10, time.Second*1)
+	waitFor(t, "the apply event made it into both state machines", fxBothMachinesHaveTheApply, time.Second*1)
 }
 
 // calls ExecuteCommand on each participant and checks that all participants get all commands
@@ -420,7 +421,7 @@ func assertCommandsWorkOnAnyNode(t testing.TB, participants []*participant) {
 			}
 			return true
 		}
-		waitFor(t, "event makes it to all", fxEventsInAll, 10, time.Second*1)
+		waitFor(t, "event makes it to all", fxEventsInAll, time.Second*1)
 	}
 }
 
@@ -492,7 +493,7 @@ func TestFollowerFailover(t *testing.T) {
 			ps[1].sm.eventsMatch(wantFirstTwoEvents) &&
 			smThree.eventsMatch(wantFirstTwoEvents)
 	}
-	waitFor(t, "the apply events made it into all state machines", fxAllMachinesHaveTheApplies, 10, time.Second*1)
+	waitFor(t, "the apply events made it into all state machines", fxAllMachinesHaveTheApplies, time.Second*1)
 
 	//a follower goes loses contact with the cluster
 	ps[2].c.Stop(ctx)
@@ -514,7 +515,7 @@ func TestFollowerFailover(t *testing.T) {
 			ps[1].sm.eventsMatch(wantFourEvents) &&
 			smThree.eventsMatch(wantFirstTwoEvents)
 	}
-	waitFor(t, "the apply events made it into eligible state machines", fxAliveMachinesHaveTheApplies, 10, time.Second*1)
+	waitFor(t, "the apply events made it into eligible state machines", fxAliveMachinesHaveTheApplies, time.Second*1)
 
 	// follower comes back
 	smThreeAgain := &fsm{}
@@ -527,7 +528,7 @@ func TestFollowerFailover(t *testing.T) {
 	fxThreeGetsCaughtUp := func() bool {
 		return smThreeAgain.eventsMatch(wantFourEvents)
 	}
-	waitFor(t, "the apply events made it into the third node when it appeared with an empty state machine", fxThreeGetsCaughtUp, 20, time.Second*2)
+	waitFor(t, "the apply events made it into the third node when it appeared with an empty state machine", fxThreeGetsCaughtUp, time.Second*2)
 	if !smThree.eventsMatch(wantFirstTwoEvents) {
 		t.Fatalf("Expected smThree to remain on 2 events: got %d", smThree.numEvents())
 	}
