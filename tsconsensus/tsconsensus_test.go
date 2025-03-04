@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -112,22 +111,16 @@ func (f *fsm) Restore(rc io.ReadCloser) error {
 	return nil
 }
 
-var verboseDERP = false
-var verboseNodes = false
-
 var testContextTimeout = 60 * time.Second
 
 func startControl(t *testing.T) (control *testcontrol.Server, controlURL string) {
-	// Corp#4520: don't use netns for tests.
+	// tailscale/corp#4520: don't use netns for tests.
 	netns.SetEnabled(false)
 	t.Cleanup(func() {
 		netns.SetEnabled(true)
 	})
 
 	derpLogf := logger.Discard
-	if verboseDERP {
-		derpLogf = t.Logf
-	}
 	derpMap := integration.RunDERPAndSTUN(t, derpLogf, "127.0.0.1")
 	control = &testcontrol.Server{
 		DERPMap: derpMap,
@@ -155,9 +148,6 @@ func startNode(t *testing.T, ctx context.Context, controlURL, hostname string) (
 		Hostname:   hostname,
 		Store:      new(mem.Store),
 		Ephemeral:  true,
-	}
-	if verboseNodes {
-		s.Logf = log.Printf
 	}
 	t.Cleanup(func() { s.Close() })
 
