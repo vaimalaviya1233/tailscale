@@ -455,13 +455,13 @@ func TestConfig(t *testing.T) {
 		t.Fatalf("monitor status want %d, got %d", 200, rsp.StatusCode)
 	}
 	defer rsp.Body.Close()
-	body, err := io.ReadAll(rsp.Body)
+	reader := bufio.NewReader(rsp.Body)
+	line1, err := reader.ReadString('\n')
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Not a great assertion because it relies on the format of the response.
-	line1 := strings.Split(string(body), "\n")[0]
-	if line1[:10] != "RaftState:" {
+	if !strings.HasPrefix(line1, "RaftState:") {
 		t.Fatalf("getting monitor status, first line, want something that starts with 'RaftState:', got '%s'", line1)
 	}
 }
