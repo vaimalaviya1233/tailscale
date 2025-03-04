@@ -111,7 +111,8 @@ func (f *fsm) Restore(rc io.ReadCloser) error {
 	return nil
 }
 
-func startControl(t *testing.T) (control *testcontrol.Server, controlURL string) {
+func startControl(t testing.TB) (control *testcontrol.Server, controlURL string) {
+	t.Helper()
 	// tailscale/corp#4520: don't use netns for tests.
 	netns.SetEnabled(false)
 	t.Cleanup(func() {
@@ -135,7 +136,7 @@ func startControl(t *testing.T) (control *testcontrol.Server, controlURL string)
 	return control, controlURL
 }
 
-func startNode(t *testing.T, ctx context.Context, controlURL, hostname string) (*tsnet.Server, key.NodePublic, netip.Addr) {
+func startNode(t testing.TB, ctx context.Context, controlURL, hostname string) (*tsnet.Server, key.NodePublic, netip.Addr) {
 	t.Helper()
 
 	tmp := filepath.Join(t.TempDir(), hostname)
@@ -156,7 +157,7 @@ func startNode(t *testing.T, ctx context.Context, controlURL, hostname string) (
 	return s, status.Self.PublicKey, status.TailscaleIPs[0]
 }
 
-func waitForNodesToBeTaggedInStatus(t *testing.T, ctx context.Context, ts *tsnet.Server, nodeKeys []key.NodePublic, tag string) {
+func waitForNodesToBeTaggedInStatus(t testing.TB, ctx context.Context, ts *tsnet.Server, nodeKeys []key.NodePublic, tag string) {
 	t.Helper()
 	waitFor(t, "nodes tagged in status", func() bool {
 		lc, err := ts.LocalClient()
@@ -192,7 +193,7 @@ func waitForNodesToBeTaggedInStatus(t *testing.T, ctx context.Context, ts *tsnet
 	}, 20, 2*time.Second)
 }
 
-func tagNodes(t *testing.T, control *testcontrol.Server, nodeKeys []key.NodePublic, tag string) {
+func tagNodes(t testing.TB, control *testcontrol.Server, nodeKeys []key.NodePublic, tag string) {
 	t.Helper()
 	for _, key := range nodeKeys {
 		n := control.Node(key)
@@ -256,7 +257,7 @@ func TestStart(t *testing.T) {
 	defer r.Stop(ctx)
 }
 
-func waitFor(t *testing.T, msg string, condition func() bool, nTries int, waitBetweenTries time.Duration) {
+func waitFor(t testing.TB, msg string, condition func() bool, nTries int, waitBetweenTries time.Duration) {
 	t.Helper()
 	for try := 0; try < nTries; try++ {
 		done := condition()
@@ -278,7 +279,7 @@ type participant struct {
 
 // starts and tags the *tsnet.Server nodes with the control, waits for the nodes to make successful
 // LocalClient Status calls that show the first node as Online.
-func startNodesAndWaitForPeerStatus(t *testing.T, ctx context.Context, clusterTag string, nNodes int) ([]*participant, *testcontrol.Server, string) {
+func startNodesAndWaitForPeerStatus(t testing.TB, ctx context.Context, clusterTag string, nNodes int) ([]*participant, *testcontrol.Server, string) {
 	t.Helper()
 	ps := make([]*participant, nNodes)
 	keysToTag := make([]key.NodePublic, nNodes)
@@ -316,7 +317,7 @@ func startNodesAndWaitForPeerStatus(t *testing.T, ctx context.Context, clusterTa
 // populates participants with their consensus fields, waits for all nodes to show all nodes
 // as part of the same consensus cluster. Starts the first participant first and waits for it to
 // become leader before adding other nodes.
-func createConsensusCluster(t *testing.T, ctx context.Context, clusterTag string, participants []*participant, cfg Config, serveDebugMonitor bool) {
+func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string, participants []*participant, cfg Config, serveDebugMonitor bool) {
 	t.Helper()
 	participants[0].sm = &fsm{}
 	rand.Seed(uint64(time.Now().UnixNano()))
@@ -384,7 +385,7 @@ func TestApply(t *testing.T) {
 }
 
 // calls ExecuteCommand on each participant and checks that all participants get all commands
-func assertCommandsWorkOnAnyNode(t *testing.T, participants []*participant) {
+func assertCommandsWorkOnAnyNode(t testing.TB, participants []*participant) {
 	t.Helper()
 	want := []string{}
 	for i, p := range participants {
