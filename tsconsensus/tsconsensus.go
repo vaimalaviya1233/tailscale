@@ -74,11 +74,17 @@ type Config struct {
 
 // DefaultConfig returns a Config populated with default values ready for use.
 func DefaultConfig() Config {
+	raftConfig := raft.DefaultConfig()
+	// these values are 2x the raft DefaultConfig
+	raftConfig.HeartbeatTimeout = 2000 * time.Millisecond
+	raftConfig.ElectionTimeout = 2000 * time.Millisecond
+	raftConfig.LeaderLeaseTimeout = 1000 * time.Millisecond
+
 	return Config{
 		CommandPort: 6271,
 		RaftPort:    6270,
 		MonitorPort: 8081,
-		Raft:        raft.DefaultConfig(),
+		Raft:        raftConfig,
 		MaxConnPool: 5,
 		ConnTimeout: 5 * time.Second,
 	}
