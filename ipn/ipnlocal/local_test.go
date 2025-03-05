@@ -44,6 +44,7 @@ import (
 	"tailscale.com/tsd"
 	"tailscale.com/tstest"
 	"tailscale.com/types/dnstype"
+	"tailscale.com/types/ipproto"
 	"tailscale.com/types/key"
 	"tailscale.com/types/logger"
 	"tailscale.com/types/logid"
@@ -5205,4 +5206,43 @@ func TestUpdateIngressLocked(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFoo(t *testing.T) {
+	lb := newLocalBackendWithTestControl(t, false, func(tb testing.TB, opts controlclient.Options) controlclient.Client {
+		return newClient(tb, opts)
+	})
+	// if _, err := lb.EditPrefs(&ipn.MaskedPrefs{ControlURLSet: true, Prefs: ipn.Prefs{ControlURL: controlURL}}); err != nil {
+	// 	t.Fatalf("(*EditPrefs).Start(): %v", err)
+	// }
+	if err := lb.Start(ipn.Options{}); err != nil {
+		t.Fatalf("(*LocalBackend).Start(): %v", err)
+	}
+
+	control := lb.cc.(*mockControl)
+	control.send(nil, "", false, &netmap.NetworkMap{})
+
+	// need to send a selfnode in the netmap to set this node's IP address for
+	// the filter to work
+
+	// need to send a packet filter with a capmap based src rule
+
+	// send down peers with caps
+
+	// test that peers with caps can get through the filter and peers without
+	// caps cannot
+
+	// (probably a good starting point to first write a test where we use the
+	// old, IP-based packet filter, just to make sure we can get the test
+	// working)
+
+	// then test that adding new peer with PeersChanged in the netmap is allowed
+	// through the filter too
+
+	pf := lb.GetFilterForTest()
+	res := pf.Check(netip.MustParseAddr("2.2.2.2"), netip.MustParseAddr("1.1.1.1"), 22, ipproto.TCP) // how to test the packet filter at a high level with IP+port
+	if res.IsDrop() != false {
+		t.Errorf("drop")
+	}
+
 }

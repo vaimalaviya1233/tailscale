@@ -184,7 +184,7 @@ func (s *Server) AddPingRequest(nodeKeyDst key.NodePublic, pr *tailcfg.PingReque
 //
 // It reports whether the message was enqueued. That is, it reports whether
 // nodeKeyDst was connected.
-func (s *Server) AddRawMapResponse(nodeKeyDst key.NodePublic, mr *tailcfg.MapResponse) bool {
+func (s *Server) AddRawMapResponse(nodeKeyDst key.NodePublic, mr *tailcfg.MapResponse) bool { // this method will let us deliver a fake mapresponse
 	return s.addDebugMessage(nodeKeyDst, mr)
 }
 

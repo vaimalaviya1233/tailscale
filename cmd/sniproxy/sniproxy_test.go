@@ -93,7 +93,7 @@ func startNode(t *testing.T, ctx context.Context, controlURL, hostname string) (
 
 	tmp := filepath.Join(t.TempDir(), hostname)
 	os.MkdirAll(tmp, 0755)
-	s := &tsnet.Server{
+	s := &tsnet.Server{ // possibly a way to run a client with full LocalBackend without too much ceremony?
 		Dir:        tmp,
 		ControlURL: controlURL,
 		Hostname:   hostname,

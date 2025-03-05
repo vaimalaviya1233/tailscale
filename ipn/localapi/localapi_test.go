@@ -339,7 +339,7 @@ func newTestLocalBackend(t testing.TB) *ipnlocal.LocalBackend {
 	sys := new(tsd.System)
 	store := new(mem.Store)
 	sys.Set(store)
-	eng, err := wgengine.NewFakeUserspaceEngine(logf, sys.Set, sys.HealthTracker(), sys.UserMetricsRegistry())
+	eng, err := wgengine.NewFakeUserspaceEngine(logf, sys.Set, sys.HealthTracker(), sys.UserMetricsRegistry()) // maybe useful for simplifying localbackend setup?
 	if err != nil {
 		t.Fatalf("NewFakeUserspaceEngine: %v", err)
 	}

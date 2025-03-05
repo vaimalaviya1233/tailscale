@@ -619,7 +619,7 @@ func (c *Auto) sendStatus(who string, err error, url string, nm *netmap.NetworkM
 				return
 			}
 		}
-		c.observer.SetControlClientStatus(c, *newSt)
+		c.observer.SetControlClientStatus(c, *newSt) // this is where the control client calls back to LocalBackend
 
 		// Best effort stop retaining the memory now that we've sent it to the
 		// observer (LocalBackend). We CAS here because the caller goroutine is

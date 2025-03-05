@@ -1537,7 +1537,7 @@ func (f configureControl) modifyTestEnv(te *testEnv) {
 
 // newTestEnv starts a bunch of services and returns a new test environment.
 // newTestEnv arranges for the environment's resources to be cleaned up on exit.
-func newTestEnv(t testing.TB, opts ...testEnvOpt) *testEnv {
+func newTestEnv(t testing.TB, opts ...testEnvOpt) *testEnv { // this is how we get a mock control server
 	if runtime.GOOS == "windows" {
 		t.Skip("not tested/working on Windows yet")
 	}

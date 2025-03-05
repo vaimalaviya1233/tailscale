@@ -2214,7 +2214,7 @@ func (b *LocalBackend) SetHTTPTestClient(c *http.Client) {
 
 // SetControlClientGetterForTesting sets the func that creates a
 // control plane client. It can be called at most once, before Start.
-func (b *LocalBackend) SetControlClientGetterForTesting(newControlClient func(controlclient.Options) (controlclient.Client, error)) {
+func (b *LocalBackend) SetControlClientGetterForTesting(newControlClient func(controlclient.Options) (controlclient.Client, error)) { // mark
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.ccGen != nil {
@@ -2376,12 +2376,12 @@ func (b *LocalBackend) Start(opts ipn.Options) error {
 	}
 	b.applyPrefsToHostinfoLocked(hostinfo, prefs)
 
-	b.setNetMapLocked(nil)
+	b.setNetMapLocked(nil) // this functions sets netmaps
 	persistv := prefs.Persist().AsStruct()
 	if persistv == nil {
 		persistv = new(persist.Persist)
 	}
-	b.updateFilterLocked(nil, ipn.PrefsView{})
+	b.updateFilterLocked(nil, ipn.PrefsView{}) // this function updates packet filters from netmap I guess
 
 	if b.portpoll != nil {
 		b.portpollOnce.Do(func() {
@@ -2420,7 +2420,7 @@ func (b *LocalBackend) Start(opts ipn.Options) error {
 		OnTailnetDefaultAutoUpdate: b.onTailnetDefaultAutoUpdate,
 		OnControlTime:              b.em.onControlTime,
 		Dialer:                     b.Dialer(),
-		Observer:                   b,
+		Observer:                   b, // this is where we tell the control client how to reach LocalBackend for the netmap update callback
 		C2NHandler:                 http.HandlerFunc(b.handleC2N),
 		DialPlan:                   &b.dialPlan, // pointer because it can't be copied
 		ControlKnobs:               b.sys.ControlKnobs(),
@@ -8166,7 +8166,7 @@ func (b *LocalBackend) startAutoUpdate(logPrefix string) (retErr error) {
 // rules that require a source IP to have a certain node capability.
 //
 // TODO(bradfitz): optimize this later if/when it matters.
-func (b *LocalBackend) srcIPHasCapForFilter(srcIP netip.Addr, cap tailcfg.NodeCapability) bool {
+func (b *LocalBackend) srcIPHasCapForFilter(srcIP netip.Addr, cap tailcfg.NodeCapability) bool { // mark: this is where the code under test is
 	if cap == "" {
 		// Shouldn't happen, but just in case.
 		// But the empty cap also shouldn't be found in Node.CapMap.
