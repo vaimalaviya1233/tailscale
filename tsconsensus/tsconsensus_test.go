@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
-	"golang.org/x/exp/rand"
 	"tailscale.com/client/tailscale"
 	"tailscale.com/ipn/store/mem"
 	"tailscale.com/net/netns"
@@ -330,9 +329,7 @@ func startNodesAndWaitForPeerStatus(t testing.TB, ctx context.Context, clusterTa
 func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string, participants []*participant, cfg Config, serveDebugMonitor bool) {
 	t.Helper()
 	participants[0].sm = &fsm{}
-	rand.Seed(uint64(time.Now().UnixNano()))
-	randomNumber := rand.Intn(8999) + 1000
-	myCfg := addIDedLogger(fmt.Sprintf("0(%d)", randomNumber), cfg)
+	myCfg := addIDedLogger("0", cfg)
 	first, err := Start(ctx, participants[0].ts, participants[0].sm, clusterTag, myCfg, serveDebugMonitor)
 	if err != nil {
 		t.Fatal(err)
@@ -345,8 +342,7 @@ func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string
 
 	for i := 1; i < len(participants); i++ {
 		participants[i].sm = &fsm{}
-		randomNumber := rand.Intn(8999) + 1000
-		myCfg := addIDedLogger(fmt.Sprintf("%d(%d)", i, randomNumber), cfg)
+		myCfg := addIDedLogger(fmt.Sprintf("%d", i), cfg)
 		c, err := Start(ctx, participants[i].ts, participants[i].sm, clusterTag, myCfg, false)
 		if err != nil {
 			t.Fatal(err)
