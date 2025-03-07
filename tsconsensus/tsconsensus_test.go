@@ -37,6 +37,7 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/types/logger"
 	"tailscale.com/types/views"
+	"tailscale.com/util/racebuild"
 )
 
 type fsm struct {
@@ -109,6 +110,14 @@ func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
 
 func (f *fsm) Restore(rc io.ReadCloser) error {
 	return nil
+}
+
+func testConfig(t *testing.T) {
+	// -race AND Parallel makes things start to take too long.
+	if !racebuild.On {
+		t.Parallel()
+	}
+	nettest.SkipIfNoNetwork(t)
 }
 
 func startControl(t testing.TB) (control *testcontrol.Server, controlURL string) {
@@ -239,8 +248,7 @@ func warnLogConfig() Config {
 }
 
 func TestStart(t *testing.T) {
-	nettest.SkipIfNoNetwork(t)
-	t.Parallel()
+	testConfig(t)
 	control, controlURL := startControl(t)
 	ctx := context.Background()
 	one, k, _ := startNode(t, ctx, controlURL, "one")
@@ -363,8 +371,7 @@ func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string
 }
 
 func TestApply(t *testing.T) {
-	nettest.SkipIfNoNetwork(t)
-	t.Parallel()
+	testConfig(t)
 	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, _, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 2)
@@ -428,8 +435,7 @@ func assertCommandsWorkOnAnyNode(t testing.TB, participants []*participant) {
 }
 
 func TestConfig(t *testing.T) {
-	nettest.SkipIfNoNetwork(t)
-	t.Parallel()
+	testConfig(t)
 	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, _, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
@@ -467,8 +473,7 @@ func TestConfig(t *testing.T) {
 }
 
 func TestFollowerFailover(t *testing.T) {
-	nettest.SkipIfNoNetwork(t)
-	t.Parallel()
+	testConfig(t)
 	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, _, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
@@ -539,8 +544,7 @@ func TestFollowerFailover(t *testing.T) {
 }
 
 func TestRejoin(t *testing.T) {
-	nettest.SkipIfNoNetwork(t)
-	t.Parallel()
+	testConfig(t)
 	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, control, controlURL := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
@@ -575,8 +579,7 @@ func TestRejoin(t *testing.T) {
 }
 
 func TestOnlyTaggedPeersCanDialRaftPort(t *testing.T) {
-	nettest.SkipIfNoNetwork(t)
-	t.Parallel()
+	testConfig(t)
 	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, control, controlURL := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
@@ -633,8 +636,7 @@ func TestOnlyTaggedPeersCanDialRaftPort(t *testing.T) {
 }
 
 func TestOnlyTaggedPeersCanBeDialed(t *testing.T) {
-	nettest.SkipIfNoNetwork(t)
-	t.Parallel()
+	testConfig(t)
 	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, control, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
@@ -697,8 +699,7 @@ func TestOnlyTaggedPeersCanBeDialed(t *testing.T) {
 }
 
 func TestOnlyTaggedPeersCanJoin(t *testing.T) {
-	nettest.SkipIfNoNetwork(t)
-	t.Parallel()
+	testConfig(t)
 	ctx := context.Background()
 	clusterTag := "tag:whatever"
 	ps, _, controlURL := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
