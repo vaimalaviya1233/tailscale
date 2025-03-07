@@ -88,9 +88,14 @@ func (m *monitor) handleSummaryStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	slices.Sort(lines)
-	lines = append([]string{fmt.Sprintf("RaftState: %s", s.RaftState)}, lines...)
-	txt := strings.Join(lines, "\n") + "\n"
-	w.Write([]byte(txt))
+	peerTxt := strings.Join(lines, "\n") + "\n"
+
+	_, err = w.Write([]byte(fmt.Sprintf("RaftState: %s\n", s.RaftState)))
+	if err != nil {
+		log.Printf("monitor: error writing status: %v", err)
+		return
+	}
+	w.Write([]byte(peerTxt))
 }
 
 func (m *monitor) handleNetmap(w http.ResponseWriter, r *http.Request) {
