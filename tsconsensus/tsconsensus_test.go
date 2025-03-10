@@ -652,9 +652,10 @@ func TestOnlyTaggedPeersCanBeDialed(t *testing.T) {
 	}
 
 	sl := StreamLayer{
-		s:        ts,
-		Listener: lns[0],
-		auth:     auth,
+		s:           ts,
+		Listener:    lns[0],
+		auth:        auth,
+		shutdownCtx: ctx,
 	}
 
 	ip1, _ := ps[1].ts.TailscaleIPs()

@@ -94,40 +94,31 @@ func DefaultConfig() Config {
 // It does the raft interprocess communication via tailscale.
 type StreamLayer struct {
 	net.Listener
-	s    *tsnet.Server
-	auth *authorization
+	s           *tsnet.Server
+	auth        *authorization
+	shutdownCtx context.Context
 }
 
 // Dial implements the raft.StreamLayer interface with the tsnet.Server's Dial.
 func (sl StreamLayer) Dial(address raft.ServerAddress, timeout time.Duration) (net.Conn, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(sl.shutdownCtx, timeout)
 	defer cancel()
-	err := sl.auth.Refresh(ctx)
+	authorized, err := sl.addrAuthorized(ctx, string(address))
 	if err != nil {
 		return nil, err
 	}
-
-	addr, err := addrFromServerAddress(string(address))
-	if err != nil {
-		return nil, err
-	}
-
-	if !sl.auth.AllowsHost(addr) {
+	if !authorized {
 		return nil, errors.New("peer is not allowed")
 	}
 	return sl.s.Dial(ctx, "tcp", string(address))
 }
 
-func (sl StreamLayer) connAuthorized(conn net.Conn) (bool, error) {
-	if conn.RemoteAddr() == nil {
-		return false, nil
-	}
-	addr, err := addrFromServerAddress(conn.RemoteAddr().String())
+func (sl StreamLayer) addrAuthorized(ctx context.Context, address string) (bool, error) {
+	addr, err := addrFromServerAddress(address)
 	if err != nil {
 		// bad RemoteAddr is not authorized
 		return false, nil
 	}
-	ctx := context.Background() // TODO
 	err = sl.auth.Refresh(ctx)
 	if err != nil {
 		// might be authorized, we couldn't tell
@@ -137,12 +128,19 @@ func (sl StreamLayer) connAuthorized(conn net.Conn) (bool, error) {
 }
 
 func (sl StreamLayer) Accept() (net.Conn, error) {
+	ctx, cancel := context.WithCancel(sl.shutdownCtx)
+	defer cancel()
 	for {
 		conn, err := sl.Listener.Accept()
 		if err != nil || conn == nil {
 			return conn, err
 		}
-		authorized, err := sl.connAuthorized(conn)
+		addr := conn.RemoteAddr()
+		if addr == nil {
+			conn.Close()
+			return nil, errors.New("conn has no remote addr")
+		}
+		authorized, err := sl.addrAuthorized(ctx, addr.String())
 		if err != nil {
 			conn.Close()
 			return nil, err
@@ -174,14 +172,16 @@ func Start(ctx context.Context, ts *tsnet.Server, fsm raft.FSM, clusterTag strin
 		id:       v4.String(),
 		hostAddr: v4,
 	}
+	shutdownCtx, shutdownCtxCancel := context.WithCancel(ctx)
 	c := Consensus{
-		commandClient: &cc,
-		self:          self,
-		config:        cfg,
+		commandClient:     &cc,
+		self:              self,
+		config:            cfg,
+		shutdownCtxCancel: shutdownCtxCancel,
 	}
 
 	auth := newAuthorization(ts, clusterTag)
-	err := auth.Refresh(ctx)
+	err := auth.Refresh(shutdownCtx)
 	if err != nil {
 		return nil, fmt.Errorf("auth refresh: %w", err)
 	}
@@ -192,7 +192,7 @@ func Start(ctx context.Context, ts *tsnet.Server, fsm raft.FSM, clusterTag strin
 	// after startRaft it's possible some other raft node that has us in their configuration will get
 	// in contact, so by the time we do anything else we may already be a functioning member
 	// of a consensus
-	r, err := startRaft(ts, &fsm, c.self, auth, cfg)
+	r, err := startRaft(shutdownCtx, ts, &fsm, c.self, auth, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +217,7 @@ func Start(ctx context.Context, ts *tsnet.Server, fsm raft.FSM, clusterTag strin
 	return &c, nil
 }
 
-func startRaft(ts *tsnet.Server, fsm *raft.FSM, self selfRaftNode, auth *authorization, cfg Config) (*raft.Raft, error) {
+func startRaft(shutdownCtx context.Context, ts *tsnet.Server, fsm *raft.FSM, self selfRaftNode, auth *authorization, cfg Config) (*raft.Raft, error) {
 	cfg.Raft.LocalID = raft.ServerID(self.id)
 
 	// no persistence (for now?)
@@ -238,9 +238,10 @@ func startRaft(ts *tsnet.Server, fsm *raft.FSM, self selfRaftNode, auth *authori
 	})
 
 	transport := raft.NewNetworkTransportWithLogger(StreamLayer{
-		s:        ts,
-		Listener: ln,
-		auth:     auth,
+		s:           ts,
+		Listener:    ln,
+		auth:        auth,
+		shutdownCtx: shutdownCtx,
 	},
 		cfg.MaxConnPool,
 		cfg.ConnTimeout,
@@ -259,6 +260,7 @@ type Consensus struct {
 	config            Config
 	cmdHttpServer     *http.Server
 	monitorHttpServer *http.Server
+	shutdownCtxCancel context.CancelFunc
 }
 
 // bootstrap tries to join a raft cluster, or start one.
@@ -332,6 +334,7 @@ func (c *Consensus) Stop(ctx context.Context) error {
 	if err != nil {
 		log.Printf("Stop: Error in Raft Shutdown: %v", err)
 	}
+	c.shutdownCtxCancel()
 	err = c.cmdHttpServer.Shutdown(ctx)
 	if err != nil {
 		log.Printf("Stop: Error in command HTTP Shutdown: %v", err)
