@@ -64,12 +64,13 @@ type selfRaftNode struct {
 // A Config holds configurable values such as ports and timeouts.
 // Use DefaultConfig to get a useful Config.
 type Config struct {
-	CommandPort uint16
-	RaftPort    uint16
-	MonitorPort uint16
-	Raft        *raft.Config
-	MaxConnPool int
-	ConnTimeout time.Duration
+	CommandPort       uint16
+	RaftPort          uint16
+	MonitorPort       uint16
+	Raft              *raft.Config
+	MaxConnPool       int
+	ConnTimeout       time.Duration
+	ServeDebugMonitor bool
 }
 
 // DefaultConfig returns a Config populated with default values ready for use.
@@ -158,7 +159,7 @@ func (sl StreamLayer) Accept() (net.Conn, error) {
 // with other nodes on the tailnet tagged with the clusterTag. The *tsnet.Server will run the state
 // machine defined by the raft.FSM also provided, and keep it in sync with the other cluster members'
 // state machines using Raft.
-func Start(ctx context.Context, ts *tsnet.Server, fsm raft.FSM, clusterTag string, cfg Config, serveDebugMonitor bool) (*Consensus, error) {
+func Start(ctx context.Context, ts *tsnet.Server, fsm raft.FSM, clusterTag string, cfg Config) (*Consensus, error) {
 	if clusterTag == "" {
 		return nil, errors.New("cluster tag must be provided")
 	}
@@ -206,7 +207,7 @@ func Start(ctx context.Context, ts *tsnet.Server, fsm raft.FSM, clusterTag strin
 
 	c.bootstrap(auth.AllowedPeers())
 
-	if serveDebugMonitor {
+	if cfg.ServeDebugMonitor {
 		srv, err = serveMonitor(&c, ts, netip.AddrPortFrom(c.self.hostAddr, cfg.MonitorPort).String())
 		if err != nil {
 			return nil, err

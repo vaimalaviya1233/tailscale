@@ -258,7 +258,7 @@ func TestStart(t *testing.T) {
 	waitForNodesToBeTaggedInStatus(t, ctx, one, []key.NodePublic{k}, clusterTag)
 
 	sm := &fsm{}
-	r, err := Start(ctx, one, sm, clusterTag, warnLogConfig(), false)
+	r, err := Start(ctx, one, sm, clusterTag, warnLogConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,11 +326,11 @@ func startNodesAndWaitForPeerStatus(t testing.TB, ctx context.Context, clusterTa
 // populates participants with their consensus fields, waits for all nodes to show all nodes
 // as part of the same consensus cluster. Starts the first participant first and waits for it to
 // become leader before adding other nodes.
-func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string, participants []*participant, cfg Config, serveDebugMonitor bool) {
+func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string, participants []*participant, cfg Config) {
 	t.Helper()
 	participants[0].sm = &fsm{}
 	myCfg := addIDedLogger("0", cfg)
-	first, err := Start(ctx, participants[0].ts, participants[0].sm, clusterTag, myCfg, serveDebugMonitor)
+	first, err := Start(ctx, participants[0].ts, participants[0].sm, clusterTag, myCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +343,7 @@ func createConsensusCluster(t testing.TB, ctx context.Context, clusterTag string
 	for i := 1; i < len(participants); i++ {
 		participants[i].sm = &fsm{}
 		myCfg := addIDedLogger(fmt.Sprintf("%d", i), cfg)
-		c, err := Start(ctx, participants[i].ts, participants[i].sm, clusterTag, myCfg, false)
+		c, err := Start(ctx, participants[i].ts, participants[i].sm, clusterTag, myCfg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -372,7 +372,7 @@ func TestApply(t *testing.T) {
 	clusterTag := "tag:whatever"
 	ps, _, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 2)
 	cfg := warnLogConfig()
-	createConsensusCluster(t, ctx, clusterTag, ps, cfg, false)
+	createConsensusCluster(t, ctx, clusterTag, ps, cfg)
 	for _, p := range ps {
 		defer p.c.Stop(ctx)
 	}
@@ -441,7 +441,8 @@ func TestConfig(t *testing.T) {
 	cfg.RaftPort = 11882
 	mp := uint16(8798)
 	cfg.MonitorPort = mp
-	createConsensusCluster(t, ctx, clusterTag, ps, cfg, true)
+	cfg.ServeDebugMonitor = true
+	createConsensusCluster(t, ctx, clusterTag, ps, cfg)
 	for _, p := range ps {
 		defer p.c.Stop(ctx)
 	}
@@ -474,7 +475,7 @@ func TestFollowerFailover(t *testing.T) {
 	clusterTag := "tag:whatever"
 	ps, _, _ := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 	cfg := warnLogConfig()
-	createConsensusCluster(t, ctx, clusterTag, ps, cfg, false)
+	createConsensusCluster(t, ctx, clusterTag, ps, cfg)
 	for _, p := range ps {
 		defer p.c.Stop(ctx)
 	}
@@ -525,7 +526,7 @@ func TestFollowerFailover(t *testing.T) {
 	// follower comes back
 	smThreeAgain := &fsm{}
 	cfg = addIDedLogger("2 after restarting", warnLogConfig())
-	rThreeAgain, err := Start(ctx, ps[2].ts, smThreeAgain, clusterTag, cfg, false)
+	rThreeAgain, err := Start(ctx, ps[2].ts, smThreeAgain, clusterTag, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +546,7 @@ func TestRejoin(t *testing.T) {
 	clusterTag := "tag:whatever"
 	ps, control, controlURL := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 	cfg := warnLogConfig()
-	createConsensusCluster(t, ctx, clusterTag, ps, cfg, false)
+	createConsensusCluster(t, ctx, clusterTag, ps, cfg)
 	for _, p := range ps {
 		defer p.c.Stop(ctx)
 	}
@@ -560,7 +561,7 @@ func TestRejoin(t *testing.T) {
 	tagNodes(t, control, []key.NodePublic{keyJoiner}, clusterTag)
 	waitForNodesToBeTaggedInStatus(t, ctx, ps[0].ts, []key.NodePublic{keyJoiner}, clusterTag)
 	smJoiner := &fsm{}
-	cJoiner, err := Start(ctx, tsJoiner, smJoiner, clusterTag, cfg, false)
+	cJoiner, err := Start(ctx, tsJoiner, smJoiner, clusterTag, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -580,7 +581,7 @@ func TestOnlyTaggedPeersCanDialRaftPort(t *testing.T) {
 	clusterTag := "tag:whatever"
 	ps, control, controlURL := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 	cfg := warnLogConfig()
-	createConsensusCluster(t, ctx, clusterTag, ps, cfg, false)
+	createConsensusCluster(t, ctx, clusterTag, ps, cfg)
 	for _, p := range ps {
 		defer p.c.Stop(ctx)
 	}
@@ -701,7 +702,7 @@ func TestOnlyTaggedPeersCanJoin(t *testing.T) {
 	clusterTag := "tag:whatever"
 	ps, _, controlURL := startNodesAndWaitForPeerStatus(t, ctx, clusterTag, 3)
 	cfg := warnLogConfig()
-	createConsensusCluster(t, ctx, clusterTag, ps, cfg, false)
+	createConsensusCluster(t, ctx, clusterTag, ps, cfg)
 	for _, p := range ps {
 		defer p.c.Stop(ctx)
 	}
