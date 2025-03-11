@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"tailscale.com/envknob"
 	"tailscale.com/ipn/conffile"
 	"tailscale.com/kube/kubeclient"
 )
@@ -74,6 +75,10 @@ type settings struct {
 	HealthCheckEnabled   bool
 	DebugAddrPort        string
 	EgressProxiesCfgPath string
+	// CertShare if true, enables cert share mechanism on kube.
+	// The pod with name suffix "-0" will be the leader and manage certs, while
+	// other pods will be in read-only mode.
+	CertShare bool
 }
 
 func configFromEnv() (*settings, error) {
@@ -109,6 +114,7 @@ func configFromEnv() (*settings, error) {
 		DebugAddrPort:                         defaultEnv("TS_DEBUG_ADDR_PORT", ""),
 		EgressProxiesCfgPath:                  defaultEnv("TS_EGRESS_PROXIES_CONFIG_PATH", ""),
 		PodUID:                                defaultEnv("POD_UID", ""),
+		CertShare:                             defaultBool("TS_EXPERIMENTAL_CERT_SHARE", false),
 	}
 	podIPs, ok := os.LookupEnv("POD_IPS")
 	if ok {
@@ -128,6 +134,20 @@ func configFromEnv() (*settings, error) {
 			cfg.PodIPv6 = parsed.String()
 		}
 	}
+	// If cert share is enabled, set the replica as read or write. Only 0th replica should be able to write.
+	// TODO: split into a separate function, add test
+	// TODO: error out if not running in k8s- maybe?
+	if cfg.CertShare {
+		podName := os.Getenv("POD_NAME")
+		if strings.HasSuffix(podName, "-0") {
+			log.Printf("serve proxy: running as leader pod %q, will manage certs", podName)
+			envknob.SetCertShareReadWriteMode()
+		} else {
+			envknob.SetCertShareReadOnlyMode()
+			log.Print("serve proxy: enabling read-only certs mode")
+		}
+	}
+
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}

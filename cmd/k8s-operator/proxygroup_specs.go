@@ -178,6 +178,10 @@ func pgStatefulSet(pg *tsapi.ProxyGroup, namespace, image, tsFirewallMode string
 				corev1.EnvVar{
 					Name:  "TS_SERVE_CONFIG",
 					Value: fmt.Sprintf("/etc/proxies/%s", serveConfigKey),
+				},
+				corev1.EnvVar{
+					Name:  "TS_EXPERIMENTAL_CERT_SHARE",
+					Value: "true",
 				})
 		}
 		return append(c.Env, envs...)
@@ -217,6 +221,11 @@ func pgServiceAccount(pg *tsapi.ProxyGroup, namespace string) *corev1.ServiceAcc
 }
 
 func pgRole(pg *tsapi.ProxyGroup, namespace string) *rbacv1.Role {
+	podNames := make([]string, pgReplicas(pg))
+	for i := range podNames {
+		podNames[i] = fmt.Sprintf("%s-%d", pg.Name, i)
+	}
+
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            pg.Name,
@@ -230,18 +239,12 @@ func pgRole(pg *tsapi.ProxyGroup, namespace string) *rbacv1.Role {
 				Resources: []string{"secrets"},
 				Verbs: []string{
 					"get",
+					"list",
+					"create",
 					"patch",
 					"update",
+					"delete",
 				},
-				ResourceNames: func() (secrets []string) {
-					for i := range pgReplicas(pg) {
-						secrets = append(secrets,
-							pgConfigSecretName(pg.Name, i),   // Config with auth key.
-							fmt.Sprintf("%s-%d", pg.Name, i), // State.
-						)
-					}
-					return secrets
-				}(),
 			},
 			{
 				APIGroups: []string{""},
@@ -249,7 +252,9 @@ func pgRole(pg *tsapi.ProxyGroup, namespace string) *rbacv1.Role {
 				Verbs: []string{
 					"create",
 					"patch",
+					"update",
 					"get",
+					"list",
 				},
 			},
 		},

@@ -32,7 +32,6 @@ func (t *Tracker) goAndDecr(f func()) {
 
 func (t *Tracker) decr() {
 	t.running.Add(-1)
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	for _, f := range t.onDone {

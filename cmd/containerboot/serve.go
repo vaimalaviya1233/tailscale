@@ -18,6 +18,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"tailscale.com/client/local"
+	"tailscale.com/envknob"
 	"tailscale.com/ipn"
 	"tailscale.com/kube/kubetypes"
 	"tailscale.com/types/netmap"
@@ -28,10 +29,11 @@ import (
 // applies it to lc. It exits when ctx is canceled. cdChanged is a channel that
 // is written to when the certDomain changes, causing the serve config to be
 // re-read and applied.
-func watchServeConfigChanges(ctx context.Context, path string, cdChanged <-chan bool, certDomainAtomic *atomic.Pointer[string], lc *local.Client, kc *kubeClient) {
+func watchServeConfigChanges(ctx context.Context, path string, cdChanged <-chan bool, certDomainAtomic *atomic.Pointer[string], lc *local.Client, kc *kubeClient, cfg *settings) {
 	if certDomainAtomic == nil {
 		panic("certDomainAtomic must not be nil")
 	}
+
 	var tickChan <-chan time.Time
 	var eventChan <-chan fsnotify.Event
 	if w, err := fsnotify.NewWatcher(); err != nil {
@@ -48,6 +50,14 @@ func watchServeConfigChanges(ctx context.Context, path string, cdChanged <-chan 
 		}
 		eventChan = w.Events
 	}
+	var cm certManager
+	if envknob.IsCertShareReadWriteMode() {
+		cm = certManager{
+			parentCtx: ctx,
+			certLoops: make(map[string]context.CancelFunc),
+			lc:        lc,
+		}
+	}
 
 	var certDomain string
 	var prevServeConfig *ipn.ServeConfig
@@ -59,10 +69,8 @@ func watchServeConfigChanges(ctx context.Context, path string, cdChanged <-chan 
 			certDomain = *certDomainAtomic.Load()
 		case <-tickChan:
 		case <-eventChan:
-			// We can't do any reasonable filtering on the event because of how
-			// k8s handles these mounts. So just re-read the file and apply it
-			// if it's changed.
 		}
+
 		sc, err := readServeConfig(path, certDomain)
 		if err != nil {
 			log.Fatalf("serve proxy: failed to read serve config: %v", err)
@@ -77,12 +85,20 @@ func watchServeConfigChanges(ctx context.Context, path string, cdChanged <-chan 
 		if err := updateServeConfig(ctx, sc, certDomain, lc); err != nil {
 			log.Fatalf("serve proxy: error updating serve config: %v", err)
 		}
-		if kc != nil && kc.canPatch {
+		if kc != nil && kc.canPatch && !(envknob.IsCertShareReadWriteMode() || envknob.IsCertShareReadOnlyMode()) {
 			if err := kc.storeHTTPSEndpoint(ctx, certDomain); err != nil {
 				log.Fatalf("serve proxy: error storing HTTPS endpoint: %v", err)
 			}
 		}
 		prevServeConfig = sc
+
+		if !envknob.IsCertShareReadWriteMode() {
+			log.Printf("serve proxy: not running in cert share rw mode")
+			continue
+		}
+		if err := cm.ensureCertLoops(ctx, sc); err != nil {
+			log.Fatalf("serve proxy: error ensuring cert loops: %v", err)
+		}
 	}
 }
 
@@ -96,6 +112,7 @@ func certDomainFromNetmap(nm *netmap.NetworkMap) string {
 // localClient is a subset of [local.Client] that can be mocked for testing.
 type localClient interface {
 	SetServeConfig(context.Context, *ipn.ServeConfig) error
+	CertPair(context.Context, string) ([]byte, []byte, error)
 }
 
 func updateServeConfig(ctx context.Context, sc *ipn.ServeConfig, certDomain string, lc localClient) error {
